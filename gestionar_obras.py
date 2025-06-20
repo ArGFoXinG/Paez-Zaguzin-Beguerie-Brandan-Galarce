@@ -67,61 +67,20 @@ class GestionarObra(ABC):
         except Exception as e:
             print(f"ERROR inesperado al mapear ORM: {e}")
             return False
+    
 
-    @classmethod # <--- ENSURE THIS DECORATOR IS PRESENT
+    @classmethod
     def limpiar_datos(cls, df):
-        """
-        d. Realiza la limpieza de datos nulos y no accesibles del DataFrame.
-           Normaliza nombres de columnas y maneja tipos de datos.
-           Retorna el DataFrame limpio.
-        """
         if df is None:
             print("No hay DataFrame para limpiar. Ejecuta 'extraer_datos' primero.")
             return None
 
         df_limpio = df.copy()
-
-        print("Iniciando limpieza y normalización de datos...")
-
         df_limpio.columns = df_limpio.columns.str.lower().str.replace('-', '_').str.strip()
-        print("Nombres de columnas normalizados.")
-
-        df_limpio = df_limpio.replace(r'^\s*$', np.nan, regex=True)
-
-        if 'monto_contrato' in df_limpio.columns:
-            df_limpio['monto_contrato'] = df_limpio['monto_contrato'].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
-            df_limpio['monto_contrato'] = pd.to_numeric(df_limpio['monto_contrato'], errors='coerce')
-        print("Columna 'monto_contrato' procesada.")
-
-        date_columns = ['fecha_inicio', 'fecha_fin_inicial']
-        for col in date_columns:
-            if col in df_limpio.columns:
-                df_limpio[col] = pd.to_datetime(df_limpio[col], errors='coerce', dayfirst=True)
-        print("Columnas de fechas procesadas.")
-
-        coord_columns = ['lat', 'lng']
-        for col in coord_columns:
-            if col in df_limpio.columns:
-                 df_limpio[col] = pd.to_numeric(df_limpio[col], errors='coerce')
-        print("Columna de coordenadas procesadas.")
-
-        if 'porcentaje_avance' in df_limpio.columns:
-            df_limpio['porcentaje_avance'] = pd.to_numeric(df_limpio['porcentaje_avance'], errors='coerce')
-        print("Columna 'porcentaje_avance' procesada.")
-
-        bool_columns = ['destacada', 'ba_elige']
-        for col in bool_columns:
-            if col in df_limpio.columns:
-                df_limpio[col] = df_limpio[col].astype(str).str.lower().map({'si': True, 'no': False, '1': True, '0': False}).fillna(False)
-        print("Columnas booleanas procesadas.")
-
-        int_columns = ['comuna', 'plazo_meses', 'mano_obra', 'licitacion_anio']
-        for col in int_columns:
-            if col in df_limpio.columns:
-                df_limpio[col] = pd.to_numeric(df_limpio[col], errors='coerce').astype('Int64')
-        print("Columnas enteras procesadas.")
-
-        print("Limpieza y normalización de datos completada.")
+        df_limpio = df_limpio.applymap(lambda x: np.nan if isinstance(x, str) and x.strip() == '' else x)
+        # Elimina filas completamente vacías
+        df_limpio = df_limpio.dropna(how='all')
+        print("Datos limpiados y normalizados.")
         return df_limpio
 
     @classmethod
