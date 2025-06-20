@@ -42,13 +42,8 @@ class GestionarObra(ABC):
             print(f"ERROR inesperado al extraer datos: {e}") # e simplificado de exception, captura cualquier otro error inesperado
             return None 
 
-    @classmethod # <--- ENSURE THIS DECORATOR IS PRESENT
+    @classmethod
     def conectar_db(cls):
-        """
-        b. Conecta a la base de datos SQLite 'obras_urbanas.db'.
-           Incluye manejo de excepciones para la conexión.
-           Intentará conectar solo si no hay una conexión activa (Peewee maneja esto).
-        """
         try:
             db.connect()
             print("Conexión a la base de datos 'obras_urbanas.db' establecida correctamente.")
