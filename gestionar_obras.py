@@ -85,61 +85,56 @@ class GestionarObra(ABC):
     
 
 
-@classmethod
-def cargar_datos(cls, df_limpio):
-    if df_limpio is None or df_limpio.empty:
-        print("No hay DataFrame limpio para cargar. Ejecuta 'limpiar_datos' primero.")
-        return False
+    # @classmethod
+    # def cargar_datos(cls, df_limpio):
+    #     if df_limpio is None or df_limpio.empty:
+    #         print("No hay DataFrame limpio para cargar. Ejecuta 'limpiar_datos' primero.")
+    #     return False
 
-    print("Iniciando carga de datos a la base de datos...")
-    try:
-        with db.atomic():
-            for index, row in df_limpio.iterrows():
-                print("\nRegistro a cargar:")
-                print(row)
-                confirm = input("¿Desea cargar este registro? (s/n): ").strip().lower()
-                if confirm != 's':
-                    print("Registro omitido.")
-                    continue
+    # print("Iniciando carga de datos a la base de datos...")
+    # try:
+    #     with db.atomic():
+    #         for index, row in df_limpio.iterrows():
+    #             print("\nRegistro a cargar:")
+    #             print(row)
+    #             confirm = input("¿Desea cargar este registro? (s/n): ").strip().lower()
+    #             if confirm != 's':
+    #                 print("Registro omitido.")
+    #                 continue
 
-                try:
-                    etapa_obj, _ = Etapa.get_or_create(nombre=str(row['etapa']).strip() if pd.notna(row['etapa']) else None)
-                    tipo_obra_obj, _ = TipoObra.get_or_create(nombre=str(row['tipo']).strip() if pd.notna(row['tipo']) else None)
-                    area_responsable_obj, _ = AreaResponsable.get_or_create(nombre=str(row['area_responsable']).strip() if pd.notna(row['area_responsable']) else None)
-                    comuna_obj = None
-                    if pd.notna(row['comuna']):
-                        comuna_obj, _ = Comuna.get_or_create(numero=int(row['comuna']))
-                    barrio_obj = None
-                    if pd.notna(row['barrio']) and comuna_obj:
-                        barrio_obj, _ = Barrio.get_or_create(nombre=str(row['barrio']).strip(), comuna=comuna_obj)
+    #             try:
+    #                 etapa_obj, _ = Etapa.get_or_create(nombre=str(row['etapa']).strip() if pd.notna(row['etapa']) else None)
+    #                 tipo_obra_obj, _ = TipoObra.get_or_create(nombre=str(row['tipo']).strip() if pd.notna(row['tipo']) else None)
+    #                 area_responsable_obj, _ = AreaResponsable.get_or_create(nombre=str(row['area_responsable']).strip() if pd.notna(row['area_responsable']) else None)
+    #                 comuna_obj = None
+    #                 if pd.notna(row['comuna']):
+    #                     comuna_obj, _ = Comuna.get_or_create(numero=int(row['comuna']))
+    #                 barrio_obj = None
+    #                 if pd.notna(row['barrio']) and comuna_obj:
+    #                     barrio_obj, _ = Barrio.get_or_create(nombre=str(row['barrio']).strip(), comuna=comuna_obj)
 
-                    Obra.create(
-                        nombre=row['nombre'] if pd.notna(row['nombre']) else "Obra sin nombre",
-                        descripcion=row['descripcion'] if pd.notna(row['descripcion']) else None,
-                        monto_contrato=row['monto_contrato'] if pd.notna(row['monto_contrato']) else None,
-                        tipo_obra=tipo_obra_obj,
-                        area_responsable=area_responsable_obj,
-                        etapa=etapa_obj,
-                        comuna=comuna_obj,
-                        barrio=barrio_obj
-                        # Agrega aquí otros campos si los necesitas
-                    )
-                    print("Registro cargado correctamente.")
-                except Exception as e:
-                    print(f"Error al cargar el registro {index}: {e}")
-        print("Carga finalizada.")
-        return True
-    except Exception as e:
-        print(f"ERROR inesperado durante la carga de datos: {e}")
-        return False
+    #                 Obra.create(
+    #                     nombre=row['nombre'] if pd.notna(row['nombre']) else "Obra sin nombre",
+    #                     descripcion=row['descripcion'] if pd.notna(row['descripcion']) else None,
+    #                     monto_contrato=row['monto_contrato'] if pd.notna(row['monto_contrato']) else None,
+    #                     tipo_obra=tipo_obra_obj,
+    #                     area_responsable=area_responsable_obj,
+    #                     etapa=etapa_obj,
+    #                     comuna=comuna_obj,
+    #                     barrio=barrio_obj
+    #                     # Agrega aquí otros campos si los necesitas
+    #                 )
+    #                 print("Registro cargado correctamente.")
+    #             except Exception as e:
+    #                 print(f"Error al cargar el registro {index}: {e}")
+    #         print("Carga finalizada.")
+    #     return True
+    # except Exception as e:
+    #     print(f"ERROR inesperado durante la carga de datos: {e}")
+    #     return False
 
-    @classmethod # <--- ENSURE THIS DECORATOR IS PRESENT
+    @classmethod
     def nueva_obra(cls):
-        """
-        f. Crea nuevas instancias de Obra, solicitando valores por teclado.
-           Valida que las Foreign Keys existan o solicita reingreso.
-           Persiste la nueva instancia usando Model.save() y retorna la instancia.
-        """
         print("\n--- Creación de Nueva Obra ---")
         # No necesitamos db.connect() aquí, main.py ya la abrió
         try:
