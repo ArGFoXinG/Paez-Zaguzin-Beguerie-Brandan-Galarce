@@ -55,15 +55,10 @@ class GestionarObra(ABC):
             print(f"ERROR inesperado al conectar la base de datos: {e}")
             return False
 
-    @classmethod # <--- ENSURE THIS DECORATOR IS PRESENT
-    def mapear_orm(cls):
-        """
-        c. Crea la estructura de la base de datos (tablas y relaciones)
-           utilizando el método create_tables(list) de Peewee.
-           Incluye manejo de excepciones.
-        """
+    @classmethod
+    def mapear_orm(cls): #crea tablas y relaciones en la base de datos
         try:
-            db.create_tables(MODELOS)
+            db.create_tables(MODELOS) # en modelos esta los nombres de las tablas
             print("Tablas de la base de datos creadas/verificadas correctamente.")
             return True
         except peewee.OperationalError as e:
