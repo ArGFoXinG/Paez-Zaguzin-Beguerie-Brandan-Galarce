@@ -14,7 +14,7 @@ class GestionarObra(ABC):
 
     _dataframe_obras = None
 
-    @classmethod # <--- ENSURE THIS DECORATOR IS PRESENT
+    @classmethod 
     def extraer_datos(cls, path_csv='observatorio-de-obras-urbanas.csv', delimiter=';', encoding='utf-8'):
         """
         a. Extrae los datos del archivo CSV utilizando pandas y los retorna como un DataFrame.
@@ -24,20 +24,23 @@ class GestionarObra(ABC):
             print(f"Intentando extraer datos de: {path_csv} con codificación {encoding}")
             cls._dataframe_obras = pd.read_csv(path_csv, sep=delimiter, encoding=encoding)
             print("Datos extraídos correctamente.")
-            return cls._dataframe_obras
+            return cls._dataframe_obras # aca llamamos al csv para extraer los datos
+    
         except FileNotFoundError:
             print(f"ERROR: El archivo '{path_csv}' no fue encontrado. Asegúrate de que esté en la misma carpeta que el script.")
-            return None
+            return None # Retorna None si no se encuentra el archivo
+        
         except UnicodeDecodeError as ude:
             print(f"ERROR de codificación al leer el CSV: {ude}")
-            print(f"¡El CSV no es {encoding}! Por favor, abre el archivo en un editor (ej. Notepad++) y guárdalo como UTF-8 sin BOM.")
-            return None
+            return None  # ude es simplificado unicode decode error, que ocurre si el encoding no es correcto
+        
         except pd.errors.EmptyDataError:
             print(f"ERROR: El archivo '{path_csv}' está vacío.")
-            return None
+            return None # Retorna None si el archivo está vacío
+        
         except Exception as e:
-            print(f"ERROR inesperado al extraer datos: {e}")
-            return None
+            print(f"ERROR inesperado al extraer datos: {e}") # e simplificado de exception, captura cualquier otro error inesperado
+            return None 
 
     @classmethod # <--- ENSURE THIS DECORATOR IS PRESENT
     def conectar_db(cls):
@@ -261,10 +264,6 @@ class GestionarObra(ABC):
             pass # db.close() no es necesario aquí si la conexión se maneja globalmente en main.py
 
 
-
-
-    @classmethod # <--- ENSURE THIS DECORATOR IS PRESENT
-    def _solicitar_fk_existente(cls, model_class, field_name, prompt_text):
         """
         Método auxiliar para solicitar y validar un valor de Foreign Key
         que debe existir en la BD.
