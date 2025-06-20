@@ -82,177 +82,56 @@ class GestionarObra(ABC):
         df_limpio = df_limpio.dropna(how='all')
         print("Datos limpiados y normalizados.")
         return df_limpio
-
-    @classmethod
-    def cargar_datos(cls, df_limpio):
-        """
-        e. Persiste los datos de las obras (ya transformados y limpios)
-           que contiene el objeto DataFrame en la base de datos relacional SQLite.
-           Utiliza el método de clase Model.create() en cada una de las clases del modelo ORM.
-           Implementa manejo de excepciones y transacciones para una carga eficiente.
-        """
-        if df_limpio is None:
-            print("No hay DataFrame limpio para cargar. Ejecuta 'limpiar_datos' primero.")
-            return False
-
-        print("Iniciando carga de datos a la base de datos...")
-        try:
-            with db.atomic():
-                for index, row in df_limpio.iterrows():
-                    try:
-                        # --- MODIFICACIONES AQUÍ PARA NORMALIZAR STRINGS ---
-                        # Función auxiliar para limpiar strings, eliminando los caracteres problemáticos
-                        def clean_string(text):
-                            if pd.isna(text):
-                                return None
-                            return str(text).strip()
-                            text = str(text)
-                            text = text.replace('', 'ñ') # Reemplaza el carácter común de error por 'ñ'
-                            text = text.replace('Pblico', 'Público') # Reemplaza el string completo si es un patrón
-                            text = text.replace('Hbitat', 'Hábitat')
-                            text = text.replace('Secretara', 'Secretaría')
-                            text = text.replace('ulica', 'úlica') # Para Hidraúlica
-                            text = text.replace('Espacio Pblico y Vial', 'Espacio Público y Vial')
-                            return text.strip()
-
-                        etapa_nombre = clean_string(row['etapa'])
-                        tipo_obra_nombre = clean_string(row['tipo'])
-                        area_responsable_nombre = clean_string(row['area_responsable'])
-                        barrio_nombre = clean_string(row['barrio'])
-                        tipo_contratacion_nombre = clean_string(row['contratacion_tipo'])
-                        empresa_nombre = clean_string(row['licitacion_oferta_empresa'])
-                        financiamiento_nombre = clean_string(row['financiamiento'])
-
-                        etapa_obj, _ = Etapa.get_or_create(nombre=etapa_nombre)
-                        tipo_obra_obj, _ = TipoObra.get_or_create(nombre=tipo_obra_nombre)
-                        area_responsable_obj, _ = AreaResponsable.get_or_create(nombre=area_responsable_nombre)
-                        # --- FIN MODIFICACIONES ---
-
-                        comuna_val = row['comuna'] if pd.notna(row['comuna']) else None
-                        comuna_obj = None
-                        if comuna_val is not None:
-                            comuna_obj, _ = Comuna.get_or_create(numero=comuna_val)
-
-                        barrio_obj = None
-                        if barrio_nombre and comuna_obj: # Usa barrio_nombre limpio
-                            barrio_obj, _ = Barrio.get_or_create(nombre=barrio_nombre, comuna=comuna_obj) # Usa barrio_nombre limpio
-                        elif barrio_nombre and not comuna_obj: # Si hay barrio pero no comuna válida
-                             barrio_obj = None
-
-                        tipo_contratacion_obj = None
-                        if tipo_contratacion_nombre: # Usa el nombre limpio
-                            tipo_contratacion_obj, _ = TipoContratacion.get_or_create(nombre=tipo_contratacion_nombre)
-
-                        empresa_obj = None
-                        if empresa_nombre: # Usa el nombre limpio
-                            cuit_val = row['cuit_contratista'] if pd.notna(row['cuit_contratista']) else None
-                            # Para Empresa, el get_or_create es un poco más delicado si hay cuit duplicados con nombres diferentes.
-                            # Si cuit es UNIQUE, el get_or_create con cuit es el primario.
-                            # Si el cuit es nulo, get_or_create se basará solo en el nombre.
-                            # Por ahora, mantenemos la lógica actual, que ya maneja los UNIQUE constraint failures.
-                            empresa_obj, _ = Empresa.get_or_create(nombre=empresa_nombre, cuit=cuit_val)
+    
 
 
-                        financiamiento_obj = None
-                        if financiamiento_nombre: # Usa el nombre limpio
-                            financiamiento_obj, _ = Financiamiento.get_or_create(nombre=financiamiento_nombre)
+@classmethod
+def cargar_datos(cls, df_limpio):
+    if df_limpio is None or df_limpio.empty:
+        print("No hay DataFrame limpio para cargar. Ejecuta 'limpiar_datos' primero.")
+        return False
 
+    print("Iniciando carga de datos a la base de datos...")
+    try:
+        with db.atomic():
+            for index, row in df_limpio.iterrows():
+                print("\nRegistro a cargar:")
+                print(row)
+                confirm = input("¿Desea cargar este registro? (s/n): ").strip().lower()
+                if confirm != 's':
+                    print("Registro omitido.")
+                    continue
 
-                        attrs = {
-                            'entorno': row['entorno'] if pd.notna(row['entorno']) else None,
-                            'nombre': row['nombre'] if pd.notna(row['nombre']) else 'Obra sin nombre',
-                            'descripcion': row['descripcion'] if pd.notna(row['descripcion']) else None,
-                            'monto_contrato': row['monto_contrato'] if pd.notna(row['monto_contrato']) else None,
-                            'direccion': row['direccion'] if pd.notna(row['direccion']) else None,
-                            'lat': row['lat'] if pd.notna(row['lat']) else None,
-                            'lng': row['lng'] if pd.notna(row['lng']) else None,
-                            'fecha_inicio': row['fecha_inicio'].date() if pd.notna(row['fecha_inicio']) else None,
-                            'fecha_fin_inicial': row['fecha_fin_inicial'].date() if pd.notna(row['fecha_fin_inicial']) else None,
-                            'plazo_meses': row['plazo_meses'] if pd.notna(row['plazo_meses']) else None,
-                            'porcentaje_avance': row['porcentaje_avance'] if pd.notna(row['porcentaje_avance']) else None,
-                            'imagen_1': row['imagen_1'] if pd.notna(row['imagen_1']) else None,
-                            'imagen_2': row['imagen_2'] if pd.notna(row['imagen_2']) else None,
-                            'imagen_3': row['imagen_3'] if pd.notna(row['imagen_3']) else None,
-                            'imagen_4': row['imagen_4'] if pd.notna(row['imagen_4']) else None,
-                            'licitacion_anio': row['licitacion_anio'] if pd.notna(row['licitacion_anio']) else None,
-                            'nro_contratacion': row['nro_contratacion'] if pd.notna(row['nro_contratacion']) else None,
-                            'beneficiarios': row['beneficiarios'] if pd.notna(row['beneficiarios']) else None,
-                            'mano_obra': row['mano_obra'] if pd.notna(row['mano_obra']) else None,
-                            'compromiso': row['compromiso'] if pd.notna(row['compromiso']) else None,
-                            'destacada': row['destacada'] if pd.notna(row['destacada']) else False,
-                            'ba_elige': row['ba_elige'] if pd.notna(row['ba_elige']) else False,
-                            'link_interno': row['link_interno'] if pd.notna(row['link_interno']) else None,
-                            'pliego_descarga': row['pliego_descarga'] if pd.notna(row['pliego_descarga']) else None,
-                            'expediente_numero': row['expediente_numero'] if pd.notna(row['expediente_numero']) else None,
-                            'estudio_ambiental_descarga': row['estudio_ambiental_descarga'] if pd.notna(row['estudio_ambiental_descarga']) else None,
-                            'etapa': etapa_obj,
-                            'tipo_obra': tipo_obra_obj,
-                            'area_responsable': area_responsable_obj,
-                            'comuna': comuna_obj,
-                            'barrio': barrio_obj,
-                            'contratacion_tipo': tipo_contratacion_obj,
-                            'licitacion_oferta_empresa': empresa_obj,
-                            'financiamiento': financiamiento_obj
-                        }
-                        Obra.create(**attrs)
-
-                    except peewee.IntegrityError as ie:
-                        print(f"Advertencia: Error de integridad al cargar fila {index}: {ie}. Saltando esta fila.")
-                    except Exception as ex:
-                        print(f"Error inesperado al procesar la fila {index}: {ex}. Datos: {row.to_dict()}")
-
-            print(f"Datos cargados correctamente. Total de obras procesadas: {len(df_limpio)}.")
-            return True
-        except peewee.OperationalError as e:
-            print(f"ERROR en la operación de base de datos durante la carga: {e}")
-            return False
-        except Exception as e:
-            print(f"ERROR inesperado durante la carga de datos: {e}")
-            return False
-        finally:
-            pass # db.close() no es necesario aquí si la conexión se maneja globalmente en main.py
-
-
-        """
-        Método auxiliar para solicitar y validar un valor de Foreign Key
-        que debe existir en la BD.
-        Si el valor no existe, muestra las opciones disponibles.
-        """
-        while True:
-            valor_ingresado = input(f"{prompt_text}: ").strip()
-            if not valor_ingresado:
-                print("Este campo no puede estar vacío.")
-                continue
-            try:
-                if field_name == 'numero':
-                    instance = model_class.get(getattr(model_class, field_name) == int(valor_ingresado))
-                else:
-                    instance = model_class.get(getattr(model_class, field_name) == valor_ingresado)
-                return instance
-            except (peewee.DoesNotExist, ValueError):
-                print(f"'{valor_ingresado}' no existe en la tabla de {model_class.__name__}.")
-                
-                print(f"Valores existentes para {model_class.__name__}:")
                 try:
-                    existing_values = model_class.select(getattr(model_class, field_name)).distinct().order_by(getattr(model_class, field_name))
-                    
-                    if existing_values.count() > 0:
-                        for val in existing_values:
-                            print(f"- {getattr(val, field_name)}")
-                    else:
-                        print(f"  (No hay valores cargados para {model_class.__name__} aún. Asegúrate de cargar el CSV primero.)")
-                    
-                except peewee.OperationalError as e:
-                    print(f"  Error de base de datos al intentar leer valores existentes: {e}")
-                except Exception as e:
-                    print(f"  Error inesperado al listar valores: {e}")
+                    etapa_obj, _ = Etapa.get_or_create(nombre=str(row['etapa']).strip() if pd.notna(row['etapa']) else None)
+                    tipo_obra_obj, _ = TipoObra.get_or_create(nombre=str(row['tipo']).strip() if pd.notna(row['tipo']) else None)
+                    area_responsable_obj, _ = AreaResponsable.get_or_create(nombre=str(row['area_responsable']).strip() if pd.notna(row['area_responsable']) else None)
+                    comuna_obj = None
+                    if pd.notna(row['comuna']):
+                        comuna_obj, _ = Comuna.get_or_create(numero=int(row['comuna']))
+                    barrio_obj = None
+                    if pd.notna(row['barrio']) and comuna_obj:
+                        barrio_obj, _ = Barrio.get_or_create(nombre=str(row['barrio']).strip(), comuna=comuna_obj)
 
-                print("Por favor, ingrese un valor existente.")
-            except peewee.OperationalError as e:
-                print(f"Error de conexión a la base de datos al buscar {model_class.__name__}: {e}. Asegúrese de que la DB esté activa.")
-                return None
-            except Exception as e:
-                print(f"Error al buscar en {model_class.__name__}: {e}")
+                    Obra.create(
+                        nombre=row['nombre'] if pd.notna(row['nombre']) else "Obra sin nombre",
+                        descripcion=row['descripcion'] if pd.notna(row['descripcion']) else None,
+                        monto_contrato=row['monto_contrato'] if pd.notna(row['monto_contrato']) else None,
+                        tipo_obra=tipo_obra_obj,
+                        area_responsable=area_responsable_obj,
+                        etapa=etapa_obj,
+                        comuna=comuna_obj,
+                        barrio=barrio_obj
+                        # Agrega aquí otros campos si los necesitas
+                    )
+                    print("Registro cargado correctamente.")
+                except Exception as e:
+                    print(f"Error al cargar el registro {index}: {e}")
+        print("Carga finalizada.")
+        return True
+    except Exception as e:
+        print(f"ERROR inesperado durante la carga de datos: {e}")
+        return False
 
     @classmethod # <--- ENSURE THIS DECORATOR IS PRESENT
     def nueva_obra(cls):
