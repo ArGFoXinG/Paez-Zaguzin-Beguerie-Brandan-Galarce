@@ -69,17 +69,16 @@ class GestionarObra(ABC):
             return False
     
 
+    
     @classmethod
     def limpiar_datos(cls, df):
-        if df is None:
-            print("No hay DataFrame para limpiar. Ejecuta 'extraer_datos' primero.")
-            return None
-
-        df_limpio = df.copy()
-        df_limpio.columns = df_limpio.columns.str.lower().str.replace('-', '_').str.strip()
-        df_limpio = df_limpio.applymap(lambda x: np.nan if isinstance(x, str) and x.strip() == '' else x)
         # Elimina filas completamente vacías
-        df_limpio = df_limpio.dropna(how='all')
+        df_limpio = df.dropna(how='all')
+
+        # Elimina filas donde los campos clave están vacíos o NaN
+        campos_clave = ['nombre', 'etapa', 'tipo', 'area_responsable']
+        df_limpio = df_limpio.dropna(subset=campos_clave, how='any')
+
         print("Datos limpiados y normalizados.")
         return df_limpio
 
