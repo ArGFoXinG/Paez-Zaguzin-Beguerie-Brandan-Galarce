@@ -115,3 +115,5 @@ class Obra(BaseModel):
         self.etapa, _ = Etapa.get_or_create(nombre="Rescindida")
         self.save()
         print(f"Obra '{self.nombre}': Rescindida.")
+
+MODELOS = [Etapa, TipoObra, AreaResponsable, Comuna, Barrio, TipoContratacion, Empresa, Financiamiento, Obra]

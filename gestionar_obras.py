@@ -93,14 +93,8 @@ class GestionarObra(ABC):
             with db.atomic():
                 for index, row in df_limpio.iterrows():
                     campos_importantes = ['nombre', 'etapa', 'tipo', 'area_responsable']
-                    if sum(pd.notna(row[campo]) for campo in campos_importantes if campo in row) < 3:
-                        continue
-
-                    print("\nRegistro a cargar:")
-                    print(row)
-                    confirm = input("¿Desea cargar este registro? (s/n): ").strip().lower()
-                    if confirm != 's':
-                        print("Registro omitido.")
+                    # Si falta algún campo importante, no lo cargues
+                    if any(pd.isna(row[campo]) for campo in campos_importantes if campo in row):
                         continue
 
                     try:
@@ -124,7 +118,7 @@ class GestionarObra(ABC):
                             comuna=comuna_obj,
                             barrio=barrio_obj
                         )
-                        print("Registro cargado correctamente.")
+                        print(f"Registro {index} cargado correctamente.")
                     except Exception as e:
                         print(f"Error al cargar el registro {index}: {e}")
             print("Carga finalizada.")
