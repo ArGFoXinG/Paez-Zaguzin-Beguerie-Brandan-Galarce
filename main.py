@@ -2,7 +2,7 @@
 
 import pandas as pd
 from gestionar_obras import GestionarObra
-from modelo_orm import db, Obra # Asegúrate de importar 'db'
+from modelo_orm2 import db, Obra # Asegúrate de importar 'db'
 import sys
 import datetime
 

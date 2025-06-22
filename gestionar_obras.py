@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 import datetime
 
 # Importamos los modelos definidos en modelo_orm.py
-from modelo_orm import db, Etapa, TipoObra, AreaResponsable, Comuna, Barrio, TipoContratacion, Empresa, Financiamiento, Obra, MODELOS
+from modelo_orm2 import db, Etapa, TipoObra, AreaResponsable, Comuna, Barrio, TipoContratacion, Empresa, Financiamiento, Obra, MODELOS
 
 
 class GestionarObra(ABC):
@@ -68,68 +68,71 @@ class GestionarObra(ABC):
             return False
     
 
-@classmethod
-def limpiar_datos(cls, df):
-    if df is None:
-        print("No hay DataFrame para limpiar. Ejecuta 'extraer_datos' primero.")
-        return None
+    @classmethod
+    def limpiar_datos(cls, df):
+        if df is None:
+            print("No hay DataFrame para limpiar. Ejecuta 'extraer_datos' primero.")
+            return None
 
-    df_limpio = df.copy()
-    df_limpio.columns = df_limpio.columns.str.lower().str.replace('-', '_').str.strip()
-    df_limpio = df_limpio.applymap(lambda x: np.nan if isinstance(x, str) and x.strip() == '' else x)
-    # Elimina filas completamente vacías
-    df_limpio = df_limpio.dropna(how='all')
-    print("Datos limpiados y normalizados.")
-    return df_limpio
+        df_limpio = df.copy()
+        df_limpio.columns = df_limpio.columns.str.lower().str.replace('-', '_').str.strip()
+        df_limpio = df_limpio.applymap(lambda x: np.nan if isinstance(x, str) and x.strip() == '' else x)
+        # Elimina filas completamente vacías
+        df_limpio = df_limpio.dropna(how='all')
+        print("Datos limpiados y normalizados.")
+        return df_limpio
 
-@classmethod
-def cargar_datos(cls, df_limpio):
-    if df_limpio is None or df_limpio.empty: # Verifica si el DataFrame está vacío
-        print("No hay DataFrame limpio para cargar. Ejecuta 'limpiar_datos' primero.")
-        return False
+    @classmethod
+    def cargar_datos(cls, df_limpio):
+        if df_limpio is None or df_limpio.empty:
+            print("No hay DataFrame limpio para cargar. Ejecuta 'limpiar_datos' primero.")
+            return False
 
-    print("Iniciando carga de datos a la base de datos...")
-    try:
-        with db.atomic(): # esto realiza la carga de datos en una transacción atómica por ejemplo si falla un registro, no se carga ninguno
-            for index, row in df_limpio.iterrows(): # Itera sobre cada fila del DataFrame 
-                print("\nRegistro a cargar:")
-                print(row) # Imprime el registro actual para revisión
-                confirm = input("¿Desea cargar este registro? (s/n): ").strip().lower() 
-                if confirm == 's':
-                    pass
-                else:
-                    print("Registro omitido.")
-                    continue
+        print("Iniciando carga de datos a la base de datos...")
+        try:
+            with db.atomic():
+                for index, row in df_limpio.iterrows():
+                    # Saltea filas con casi todos los campos vacíos
+                    campos_importantes = ['nombre', 'etapa', 'tipo', 'area_responsable']
+                    if sum(pd.notna(row[campo]) for campo in campos_importantes if campo in row) < 2:
+                        continue
 
-                try:
-                    etapa_obj, _ = Etapa.get_or_create(nombre=str(row['etapa']).strip() if pd.notna(row['etapa']) else None) # obtiene o crea el objeto Etapa
-                    tipo_obra_obj, _ = TipoObra.get_or_create(nombre=str(row['tipo']).strip() if pd.notna(row['tipo']) else None) # obtiene o crea el objeto TipoObra
-                    area_responsable_obj, _ = AreaResponsable.get_or_create(nombre=str(row['area_responsable']).strip() if pd.notna(row['area_responsable']) else None) # obtiene o crea el objeto AreaResponsable
-                    comuna_obj = None
-                    if pd.notna(row['comuna']): # Verifica si la columna 'comuna' no es NaN
-                        comuna_obj, _ = Comuna.get_or_create(numero=int(row['comuna'])) # obtiene o crea el objeto Comuna                    barrio_obj = None
-                    if pd.notna(row['barrio']) and comuna_obj: # Verifica si la columna 'barrio' no es NaN y comuna_obj existe
-                        barrio_obj, _ = Barrio.get_or_create(nombre=str(row['barrio']).strip(), comuna=comuna_obj) # obtiene o crea el objeto Barrio
-                        
-                    Obra.create(
-                        nombre=row['nombre'] if pd.notna(row['nombre']) else "Obra sin nombre",
-                        descripcion=row['descripcion'] if pd.notna(row['descripcion']) else None,
-                        monto_contrato=row['monto_contrato'] if pd.notna(row['monto_contrato']) else None,
-                        tipo_obra=tipo_obra_obj,
-                        area_responsable=area_responsable_obj,
-                        etapa=etapa_obj,
-                        comuna=comuna_obj,
-                        barrio=barrio_obj
-                        # Agrega aquí otros campos si los necesitas
-                    )
-                    print("Registro cargado correctamente.")
-                except Exception as e:
-                    print(f"Error al cargar el registro {index}: {e}")
+                    print("\nRegistro a cargar:")
+                    print(row)
+                    confirm = input("¿Desea cargar este registro? (s/n): ").strip().lower()
+                    if confirm != 's':
+                        print("Registro omitido.")
+                        continue
+
+                    try:
+                        etapa_obj, _ = Etapa.get_or_create(nombre=str(row['etapa']).strip() if pd.notna(row['etapa']) else None)
+                        tipo_obra_obj, _ = TipoObra.get_or_create(nombre=str(row['tipo']).strip() if pd.notna(row['tipo']) else None)
+                        area_responsable_obj, _ = AreaResponsable.get_or_create(nombre=str(row['area_responsable']).strip() if pd.notna(row['area_responsable']) else None)
+                        comuna_obj = None
+                        if pd.notna(row['comuna']):
+                            comuna_obj, _ = Comuna.get_or_create(numero=int(row['comuna']))
+                        barrio_obj = None
+                        if pd.notna(row['barrio']) and comuna_obj:
+                            barrio_obj, _ = Barrio.get_or_create(nombre=str(row['barrio']).strip(), comuna=comuna_obj)
+
+                        Obra.create(
+                            nombre=row['nombre'] if pd.notna(row['nombre']) else "Obra sin nombre",
+                            descripcion=row['descripcion'] if pd.notna(row['descripcion']) else None,
+                            monto_contrato=row['monto_contrato'] if pd.notna(row['monto_contrato']) else None,
+                            tipo_obra=tipo_obra_obj,
+                            area_responsable=area_responsable_obj,
+                            etapa=etapa_obj,
+                            comuna=comuna_obj,
+                            barrio=barrio_obj
+                        )
+                        print("Registro cargado correctamente.")
+                    except Exception as e:
+                        print(f"Error al cargar el registro {index}: {e}")
             print("Carga finalizada.")
-        return True
-    except Exception as e:
-        print(f"ERROR inesperado durante la carga de datos: {e}")
-        return False
+            return True
+        except Exception as e:
+            print(f"ERROR inesperado durante la carga de datos: {e}")
+            return False
 
 
     @classmethod
@@ -228,19 +231,19 @@ def cargar_datos(cls, df_limpio):
 
             print("\n3. Cantidad de obras por etapa:")
             obras_por_etapa = (Obra.select(Obra.etapa.nombre, peewee.fn.COUNT(Obra.id).alias('cantidad'))
-                                   .join(Etapa)
-                                   .group_by(Obra.etapa.nombre)
-                                   .order_by(peewee.fn.COUNT(Obra.id).desc()))
+                                    .join(Etapa)
+                                    .group_by(Obra.etapa.nombre)
+                                    .order_by(peewee.fn.COUNT(Obra.id).desc()))
             for res in obras_por_etapa:
                 print(f"- {res.etapa.nombre}: {res.cantidad} obras")
 
             print("\n4. Obras y Monto de Inversión por Tipo de Obra:")
             inversion_por_tipo = (Obra.select(Obra.tipo_obra.nombre,
-                                              peewee.fn.COUNT(Obra.id).alias('cantidad'),
-                                              peewee.fn.SUM(Obra.monto_contrato).alias('monto_total'))
-                                      .join(TipoObra)
-                                      .group_by(Obra.tipo_obra.nombre)
-                                      .order_by(peewee.fn.COUNT(Obra.id).desc()))
+                                                peewee.fn.COUNT(Obra.id).alias('cantidad'),
+                                                peewee.fn.SUM(Obra.monto_contrato).alias('monto_total'))
+                                        .join(TipoObra)
+                                        .group_by(Obra.tipo_obra.nombre)
+                                        .order_by(peewee.fn.COUNT(Obra.id).desc()))
             for res in inversion_por_tipo:
                 monto_total = f"${res.monto_total:,.2f}" if res.monto_total else "N/A"
                 print(f"- {res.tipo_obra.nombre}: {res.cantidad} obras, Inversión total: {monto_total}")
@@ -280,3 +283,19 @@ def cargar_datos(cls, df_limpio):
             print(f"ERROR inesperado al obtener indicadores: {e}")
         finally:
             pass
+    
+    @classmethod
+    def _solicitar_fk_existente(cls, Modelo, campo, texto):
+        opciones = [getattr(obj, campo) for obj in Modelo.select()]
+        if not opciones:
+            print(f"No hay opciones cargadas para {texto}.")
+            return None
+        while True:
+            print(f"Opciones disponibles para {texto}:")
+            for opcion in opciones:
+                print(f"- {opcion}")
+            valor = input(f"Ingrese {texto}: ").strip()
+            try:
+                return Modelo.get(getattr(Modelo, campo) == valor)
+            except Modelo.DoesNotExist:
+                print(f"{texto} '{valor}' no existe. Intente nuevamente.\n")
