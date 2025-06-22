@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import peewee
+from peewee import OperationalError, fn
 from abc import ABC, abstractmethod
 import datetime
 
@@ -47,7 +48,7 @@ class GestionarObra(ABC):
             db.connect()
             print("Conexión a la base de datos 'obras_urbanas.db' establecida correctamente.")
             return True
-        except peewee.OperationalError as e:
+        except OperationalError as e:
             print(f"ERROR: No se pudo conectar a la base de datos. {e}")
             return False
         except Exception as e:
@@ -60,7 +61,7 @@ class GestionarObra(ABC):
             db.create_tables(MODELOS) # en modelos esta los nombres de las tablas
             print("Tablas de la base de datos creadas/verificadas correctamente.")
             return True
-        except peewee.OperationalError as e:
+        except OperationalError as e:
             print(f"ERROR: No se pudieron crear las tablas de la base de datos. {e}")
             return False
         except Exception as e:
@@ -92,9 +93,8 @@ class GestionarObra(ABC):
         try:
             with db.atomic():
                 for index, row in df_limpio.iterrows():
-                    # Saltea filas con casi todos los campos vacíos
                     campos_importantes = ['nombre', 'etapa', 'tipo', 'area_responsable']
-                    if sum(pd.notna(row[campo]) for campo in campos_importantes if campo in row) < 2:
+                    if sum(pd.notna(row[campo]) for campo in campos_importantes if campo in row) < 3:
                         continue
 
                     print("\nRegistro a cargar:")
@@ -133,91 +133,56 @@ class GestionarObra(ABC):
         except Exception as e:
             print(f"ERROR inesperado durante la carga de datos: {e}")
             return False
+        finally:
+            if not db.is_closed():
+                db.close()
+                print("Conexión a la base de datos cerrada.")
 
 
     @classmethod
     def nueva_obra(cls):
-        print("\n--- Creación de Nueva Obra ---")
-        # No necesitamos db.connect() aquí, main.py ya la abrió
+        print("\n--- Crear Nueva Obra ---")
         try:
-            nombre = input("Nombre de la Obra: ").strip()
-            while not nombre:
-                nombre = input("El nombre de la Obra no puede estar vacío. Ingrese nuevamente: ").strip()
+            nombre = input("Nombre de la obra: ").strip()
+            descripcion = input("Descripción: ").strip()
+            direccion = input("Dirección: ").strip()
+            monto_contrato = input("Monto del Contrato (ej: 123456.78, opcional): ").replace("$", "").replace(",", ".").strip()
+            monto_contrato = float(monto_contrato) if monto_contrato else None
 
-            descripcion = input("Descripción (opcional): ").strip() or None
-            direccion = input("Dirección (opcional): ").strip() or None
-            monto_contrato_str = input("Monto del Contrato (ej: 123456.78, opcional): ").strip() or None
-            monto_contrato = float(monto_contrato_str) if monto_contrato_str else None
+            tipo_obra = cls._solicitar_fk_existente(TipoObra, "nombre", "Tipo de Obra")
+            area_responsable = cls._solicitar_fk_existente(AreaResponsable, "nombre", "Área Responsable")
+            comuna = cls._solicitar_fk_existente(Comuna, "numero", "Comuna")
+            barrio = cls._solicitar_fk_existente(Barrio, "nombre", "Barrio")
 
-            tipo_obra_obj = cls._solicitar_fk_existente(TipoObra, 'nombre', "Tipo de Obra")
-            if tipo_obra_obj is None: return None
+            if not (tipo_obra and area_responsable and comuna and barrio):
+                print("No se pudo crear la obra por falta de datos obligatorios.")
+                return None
 
-            area_responsable_obj = cls._solicitar_fk_existente(AreaResponsable, 'nombre', "Área Responsable")
-            if area_responsable_obj is None: return None
-
-            comuna_obj = None
-            while True:
-                comuna_input = input("Comuna (número entero, opcional): ").strip()
-                if not comuna_input:
-                    break
-                try:
-                    comuna_num = int(comuna_input)
-                    comuna_obj, created = Comuna.get_or_create(numero=comuna_num)
-                    if created:
-                        print(f"Comuna {comuna_num} creada (si no existía).")
-                    break
-                except ValueError:
-                    print("Comuna debe ser un número entero válido.")
-                except Exception as e:
-                    print(f"Error al procesar comuna: {e}")
-
-            barrio_obj = None
-            if comuna_obj:
-                barrio_nombre = input("Barrio (opcional, debe existir en la comuna seleccionada o se ignorará si no se encuentra): ").strip()
-                if barrio_nombre:
-                    try:
-                        barrio_obj = Barrio.get(Barrio.nombre == barrio_nombre, Barrio.comuna == comuna_obj)
-                    except peewee.DoesNotExist:
-                        print(f"El barrio '{barrio_nombre}' no existe para la comuna {comuna_obj.numero}. Será ignorado.")
-                        barrio_obj = None
-                    except Exception as e:
-                        print(f"Error al buscar barrio: {e}")
-            else:
-                print("No se puede especificar un barrio sin una comuna válida.")
-
-            nueva_obra_obj = Obra(
+            obra = Obra.create(
                 nombre=nombre,
                 descripcion=descripcion,
                 direccion=direccion,
                 monto_contrato=monto_contrato,
-                tipo_obra=tipo_obra_obj,
-                area_responsable=area_responsable_obj,
-                comuna=comuna_obj,
-                barrio=barrio_obj,
+                tipo_obra=tipo_obra,
+                area_responsable=area_responsable,
+                comuna=comuna,
+                barrio=barrio,
+                etapa=None
             )
-            nueva_obra_obj.save()
-            print(f"Obra '{nombre}' creada con éxito. ID: {nueva_obra_obj.id}")
-
-            nueva_obra_obj.nuevo_proyecto()
-
-            return nueva_obra_obj
-
-        except peewee.OperationalError as e:
-            print(f"ERROR de conexión a la base de datos al crear nueva obra: {e}. Asegúrese de que la DB esté activa.")
-            return None
+            obra.nuevo_proyecto()
+            print(f"Obra '{obra.nombre}' creada correctamente.")
+            return obra
         except Exception as e:
             print(f"ERROR inesperado al crear nueva obra: {e}")
             return None
 
-
-    @classmethod # <--- ENSURE THIS DECORATOR IS PRESENT
+    @classmethod
     def obtener_indicadores(cls):
         """
         g. Obtiene y muestra por consola la información de las obras existentes.
-           Utiliza sentencias ORM para las consultas.
+        Utiliza sentencias ORM para las consultas.
         """
         print("\n--- Indicadores de Obras Urbanas ---")
-        # No necesitamos db.connect() aquí, main.py ya la abrió
         try:
             print("\n1. Áreas Responsables:")
             areas = AreaResponsable.select().order_by(AreaResponsable.nombre)
@@ -230,17 +195,17 @@ class GestionarObra(ABC):
                 print(f"- {tipo.nombre}")
 
             print("\n3. Cantidad de obras por etapa:")
-            obras_por_etapa = (Obra.select(Obra.etapa.nombre, peewee.fn.COUNT(Obra.id).alias('cantidad'))
+            obras_por_etapa = (Obra.select(Obra.etapa.nombre, fn.COUNT(Obra.id).alias('cantidad'))
                                     .join(Etapa)
                                     .group_by(Obra.etapa.nombre)
-                                    .order_by(peewee.fn.COUNT(Obra.id).desc()))
+                                    .order_by(fn.COUNT(Obra.id).desc()))
             for res in obras_por_etapa:
                 print(f"- {res.etapa.nombre}: {res.cantidad} obras")
 
             print("\n4. Obras y Monto de Inversión por Tipo de Obra:")
             inversion_por_tipo = (Obra.select(Obra.tipo_obra.nombre,
-                                                peewee.fn.COUNT(Obra.id).alias('cantidad'),
-                                                peewee.fn.SUM(Obra.monto_contrato).alias('monto_total'))
+                                            fn.COUNT(Obra.id).alias('cantidad'),
+                                            fn.SUM(Obra.monto_contrato).alias('monto_total'))
                                         .join(TipoObra)
                                         .group_by(Obra.tipo_obra.nombre)
                                         .order_by(peewee.fn.COUNT(Obra.id).desc()))
@@ -265,25 +230,23 @@ class GestionarObra(ABC):
 
             print("\n6. Cantidad de obras finalizadas en <= 24 meses:")
             obras_finalizadas_en_plazo = (Obra.select()
-                                            .join(Etapa)
-                                            .where(
-                                                (Etapa.nombre == "Finalizada") &
-                                                (Obra.plazo_meses <= 24)
-                                            ).count())
+                                        .join(Etapa)
+                                        .where(
+                                            (Etapa.nombre == "Finalizada") &
+                                            (Obra.plazo_meses <= 24)
+                                        ).count())
             print(f"- {obras_finalizadas_en_plazo} obras finalizadas en 24 meses o menos.")
 
             print("\n7. Monto total de inversión:")
-            monto_total_general = Obra.select(peewee.fn.SUM(Obra.monto_contrato)).scalar()
+            monto_total_general = Obra.select(fn.SUM(Obra.monto_contrato)).scalar()
             monto_total_general_formato = f"${monto_total_general:,.2f}" if monto_total_general else "N/A"
             print(f"- El monto total de inversión de todas las obras es: {monto_total_general_formato}")
 
-        except peewee.OperationalError as e:
+        except OperationalError as e:
             print(f"ERROR en la operación de base de datos al obtener indicadores: {e}")
         except Exception as e:
             print(f"ERROR inesperado al obtener indicadores: {e}")
-        finally:
-            pass
-    
+
     @classmethod
     def _solicitar_fk_existente(cls, Modelo, campo, texto):
         opciones = [getattr(obj, campo) for obj in Modelo.select()]
