@@ -6,7 +6,7 @@ from peewee import OperationalError, fn
 from abc import ABC, abstractmethod
 import datetime
 
-# Importamos los modelos definidos en modelo_orm.py
+# Importamos los modelos definidos en modelo_orm2.py
 from modelo_orm2 import db, Etapa, TipoObra, AreaResponsable, Comuna, Barrio, TipoContratacion, Empresa, Financiamiento, Obra, MODELOS
 
 
